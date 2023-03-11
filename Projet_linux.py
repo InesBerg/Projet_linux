@@ -6,40 +6,48 @@ Created on Wed Mar  1 11:19:19 2023
 """
 
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objs as go
 from dash import Dash, html, dcc
 from dash.dependencies import Output, Input
 import datetime as dt
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 import numpy as np
 
 
-df=pd.read_csv("//wsl.localhost/Ubuntu/home/inesbergaut/prix_lvmh.csv", sep=",", header=None)
-df.columns = ['Date','Action LVMH']
+df=pd.read_csv("//wsl.localhost/Ubuntu/home/inesbergaut/prix_lvmh.csv", sep=",", header = None)
+df.columns=['Date','Heure','Action LVMH']
+df['Date'] = pd.to_datetime(df['Date'])
+df['Heure'] = df['Heure'].apply(lambda x: datetime.strptime(x, '%H:%M').time())
+
+dates = df['Date'].dt.date.unique()
+
+
+
 
 app = Dash(__name__) #objet de type dash
 app.title = 'Action LVMH'
-df['Date'] = pd.to_datetime(df['Date'])
-df = df.set_index("Date")
-print(df)
-'''
-#graphique évolution du cours de l'action dans la journée
-start_time = dt.time(hour=9, minute=0)
-end_time = dt.time(hour=17, minute=30)
-df = df[(df['Heure'].dt.time >= start_time) & (df['Heure'].dt.time <= end_time)]
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=df['Heure'], y=df['Prix LVMH'], mode='lines'))
-'''
+
+
 #App layout
 
 app.layout=html.Div([
     
+    html.Div(style={'backgroundColor': '#9E6A44', 'height': '100px'}),
+    
     #Titre
-    html.H2(
-       "ACTION LVMH",
-       style={"marginTop": 5, "marginLeft": "10px"},
+    html.H1(
+       "LVMH",
+       style={"position": "absolute", "top": "0%", "left": "50%", "transform": "translate(-50%, -50%)","font-size": "50px",
+                'textDecoration': 'underline'},
    ),
+    
+    html.P(
+                'MOËT HENNESSY.LOUIS VUITTON',
+                style={
+                    'textAlign': 'center',
+                    'fontSize': '20px',
+                    'marginTop': '-40px'
+                }
+            ),
     
     html.H3(
         "Secteur : Habillement et accessoires",
@@ -52,26 +60,53 @@ app.layout=html.Div([
     ),
     
    #Prix de l'action LVMH
-    html.Div(id='action_lvmh', style={'padding': '40px', 'font-size': '30px'}),
+    html.Div(id='action_lvmh', style={'padding': '20px', 'font-size': '30px'}),
+    
+    #Pourcentage de variation par rapport au prix de clôture
+    html.Div([
+            html.Div(
+                id="variation",
+                style={
+                    'font-size': '25px',
+                    'padding': '0.06px',
+                    'margin': '10px',
+                    'width': '200px',
+                    'height': '100px',
+                    'display': 'flex',
+                    'justify-content': 'center',
+                    'align-items': 'center'
+                },
+            )
+        ],
+        style={'position': 'absolute', 'left': 80, 'top': 200},   
+    ),
     
     html.H4("EURONEXT PARIS DONNEES TEMPS REEL",style={"marginLeft": "10px"}),
     
     
-    #sélectionner de date
+    html.H2('Cours de bourse LVMH',style={"marginLeft": "10px"}),
+    
+    html.Label('Choisir une date '),
+    
     dcc.DatePickerSingle(
         id='date-picker',
-        min_date_allowed=df.index.min(),
-        max_date_allowed=df.index.max(),
-        initial_visible_month=dt.date.today(),
-        date=dt.date.today()
+        min_date_allowed=min(dates),
+        max_date_allowed=max(dates),
+        initial_visible_month=max(dates),
+        display_format='DD/MM/YYYY',
+        date=max(dates),
+        style={'backgroundColor': '#f2f2f2'} ,
     ),
     
-    # Graphique
-    dcc.Graph(id="graph"),
+    html.Div(
+           dcc.Graph(
+               id='graph',
+           ),
+           style={'margin-left': 'auto', 'margin-right': 'auto', 'width': '90%'}
+       ),
     
-    #Prix de clôture de l'action LVMH
-    #html.H1(id="prix-closure"),
-   
+    #dcc.Graph(id='graph', style={'margin-left': 'auto', 'margin-right': 'auto', 'width': '50%'}),
+    
     #Mise à jour automatique toutes les minutes
     dcc.Interval(
         id='interval-min',
@@ -86,18 +121,96 @@ app.layout=html.Div([
         n_intervals=0
     ),
     
-    html.H1('Prix le plus haut et le plus bas'),
     
-    html.Div(id='output-container')
+    html.Div([
+         html.Div([
+                 html.H3("Prix le plus haut"),
+                 html.Div(
+                     id='highest-price',
+                     style={
+                         'font-size': '25px',
+                         'padding': '0.06px',
+                         'margin': '1px',
+                         'width': '200px',
+                         'height': '50px',
+                         'display': 'flex',
+                         'justify-content': 'center',
+                         'align-items': 'center'
+                     },
+                 )
+             ],
+             style={'position': 'absolute', 'right': 500, 'top': 150},
+             
+         ),
+         html.Div([
+                 html.H3("Prix le plus bas"),
+                 html.Div(
+                     id='lowest-price',
+                     style={
+                         'font-size': '25px',
+                         'padding': '0.06px',
+                         'margin': '1px',
+                         'width': '200px',
+                         'height': '50px',
+                         'display': 'flex',
+                         'justify-content': 'center',
+                         'align-items': 'center'
+                     },
+                 )
+             ],
+            style={'position': 'absolute', 'right': 300, 'top': 150},
+         ),
+         
+         #Prix de clôture de l'action LVMH
+         html.Div([
+                 html.H3("Dernier prix de clôture"),
+                 html.Div(
+                     id="prix-closure",
+                     style={
+                         'font-size': '25px',
+                         'padding': '0.06px',
+                         'margin': '1px',
+                         'width': '200px',
+                         'height': '50px',
+                         'display': 'flex',
+                         'justify-content': 'center',
+                         'align-items': 'center'
+                     },
+                 )
+             ],
+             style={'position': 'absolute', 'right': 100, 'top': 150},   
+         ),
+         
+         #Volatilité de l'action LVMH
+         html.Div([
+                 html.H3("Volatilité"),
+                 html.Div(
+                     id='volatility',
+                     style={
+                         'font-size': '25px',
+                         'padding': '0.06px',
+                         'margin': '1px',
+                         'width': '200px',
+                         'height': '50px',
+                         'display': 'flex',
+                         'justify-content': 'center',
+                         'align-items': 'center'
+                     },
+                 )
+             ],
+            style={'position': 'absolute', 'right': 500, 'top': 270},
+         ),
+         
+     ],
+ ),
     
     ],
     
     style={
-        "backgroundColor": "#f2f2f2",
-        "height": "1000vh"
-    }
+        "backgroundColor": "#E6C19C",
+        "min-height": "100vh"}
     
-    )
+ )
 
 #Callback pour mettre à jour le prix de l'action en temps réel
 @app.callback(Output('action_lvmh', 'children'),
@@ -112,35 +225,39 @@ def update_price(n):
     # Mettre à jour le contenu de l'élément html avec le nouveau prix
     return formatted_price
 
-#Callback pour mettre à jour le graphique représentant le prix de l'action en temps réel
-@app.callback(
-    Output("graph", "figure"),
-    [Input('date-picker', 'date'),
-     Input('interval-min', 'n_intervals')]
-)
+# Définition de la fonction de mise à jour du graphique en fonction de la date sélectionnée
+@app.callback(Output('graph', 'figure'),
+              [Input('date-picker', 'date'),
+               Input('interval-min', 'n_intervals')])
+
 def update_graph(selected_date, n):
-    # Conversion de la date sélectionnée au format datetime
-    selected_date = dt.datetime.strptime(selected_date, "%Y-%m-%d").date()
+    # Recharger les données du fichier CSV
+    df=pd.read_csv("//wsl.localhost/Ubuntu/home/inesbergaut/prix_lvmh.csv", sep=",", header = None)
+    df.columns=['Date','Heure','Action LVMH']
+    df['Date'] = pd.to_datetime(df['Date'])
+    df['Heure'] = df['Heure'].apply(lambda x: datetime.strptime(x, '%H:%M').time())
+    df = df[df['Date'] == selected_date]
     
-    # Filtrage des données pour la date sélectionnée
-    df_selected = df[df.index.date == selected_date]
-    
-    # Création du graphique
-    fig = {
-        "data": [
-            {"x": df_selected.index, "y": df_selected["Action LVMH"], "type": "line", "name": "Prix de l'action"}
-        ],
-        "layout": {
-            "title": "Prix de l'action LVMH le {}".format(selected_date.strftime("%d/%m/%Y")),
-            "xaxis": {"title": "Heure"},
-            "yaxis": {"title": "Prix ($)"},
-            "margin": {"l": 40, "r": 40, "t": 80, "b": 40}
-        }
+    heures = np.arange(9, 19, 1)
+    selected_date_title = datetime.strptime(selected_date, '%Y-%m-%d').strftime('%d/%m/%Y')
+    # Créer le graphique
+    figure = {
+        'data': [{'x': df['Heure'], 'y': df['Action LVMH'], 'type': 'line','line': {'color': 'rgb(165,42,42)'}}],
+        'layout': {'title': f'Cours de l\'action LVMH le {selected_date_title}',
+                  'xaxis': {'title': 'Heure',
+                             'tickmode': 'array',
+                             'tickvals': [datetime.strptime(h, '%H').time() for h in map(str, heures)],
+                             'ticktext': [h.strftime('%H:%M') for h in [datetime.strptime(h, '%H').time() for h in map(str, heures)]]
+                             
+                             },
+                   
+                   'plot_bgcolor': '#f2f2f2'
+                  }
     }
     
-    return fig
+    
+    return figure
 
-'''
 #Callback pour mettre à jour le prix de clôture de l'action tous les jours à 18h
 @app.callback(
     Output("prix-closure", "children"),
@@ -152,30 +269,68 @@ def update_prix_closure(n):
     
     # Filtrage des données pour la date d'hier
     yesterday = today - dt.timedelta(days=1)
-    data = df[df.index.date == yesterday]
+    data = df[df['Date'].dt.date == yesterday]
     
     # Récupération du prix de clôture
     prix_closure = data["Action LVMH"].iloc[-1]
     
     # Affichage du prix de clôture
-    return f"Prix de clôture pour le {yesterday.strftime('%d/%m/%Y')} : {prix_closure} €"
-'''
-# Définition de la fonction de mise à jour des prix
+    return f"{prix_closure} €"
+
+# Définition de la fonction de mise à jour du prix le plus haut et le plus bas
 @app.callback(
-    Output(component_id='output-container', component_property='children'),
-    Input(component_id='date-picker', component_property='date')
+    [Output('highest-price', 'children'),
+     Output('lowest-price', 'children')],
+    Input('date-picker', 'date')
 )
 def update_output_div(date_string):
     selected_date = datetime.strptime(date_string, '%Y-%m-%d')
-    start_time = datetime.combine(selected_date, time(hour=9))
-    end_time = datetime.combine(selected_date, time(hour=18))
-    filtered_df = df.loc[start_time:end_time]
+    start_time = dt.time(hour=9, minute=0)
+    end_time = dt.time(hour=18, minute=0)
+    filtered_df = df.loc[(df['Date'] == selected_date) & (df['Heure'] >= start_time) & (df['Heure'] <= end_time)]
     if len(filtered_df) > 0:
         highest_price = filtered_df['Action LVMH'].max()
         lowest_price = filtered_df['Action LVMH'].min()
-        return f'Le prix le plus haut est {highest_price} et le prix le plus bas est {lowest_price}'
+        return f"{highest_price} €", f"{lowest_price} €"
     else:
-        return 'Aucune donnée pour cette journée'
+        return 'Aucune donnée pour cette journée', 'Aucune donnée pour cette journée'
+
+
+# Définir la fonction de mise à jour de la variation du prix actuel par rapport au prix de clôture de la veille
+@app.callback(
+    Output('variation', 'children'),
+    Input('interval-min', 'n_intervals')
+)
+def update_variation(n):
+    # Récupération de la date d'aujourd'hui
+    today = dt.date.today()
+    
+    # Filtrage des données pour la date d'hier
+    yesterday = today - dt.timedelta(days=1)
+    data = df[df['Date'].dt.date == yesterday]
+    
+    # Récupération du prix de clôture
+    prix_closure = data["Action LVMH"].iloc[-1]
+    
+    # Récupérer la variation la plus récente
+    variation_pct = ((df['Action LVMH'].iloc[-1]-prix_closure)/prix_closure)*100
+    color = 'green' if variation_pct >= 0 else 'red'
+    return html.Span(f"{variation_pct:.2f}%", style={'color': color})
+
+# Définir la fonction de mise à jour de la volatilité
+@app.callback(Output('volatility', 'children'), [Input('date-picker', 'date')])
+def update_volatility(selected_date):
+    # Sélectionner les données pour la date sélectionnée
+    selected_data = df[df['Date'] == selected_date]
+    
+    # Calculer les rendements de l'action
+    selected_data['Rendement'] = selected_data['Action LVMH'].pct_change()
+    
+    # Calculer la volatilité
+    volatility = selected_data['Rendement'].std() * (252 ** 0.5)
+    
+    return "{:.2f}%".format(volatility * 100)
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)
