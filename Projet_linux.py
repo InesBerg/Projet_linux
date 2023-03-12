@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed Mar  1 11:19:19 2023
-
 @author: inesb
 """
 
@@ -20,8 +19,20 @@ df['Heure'] = df['Heure'].apply(lambda x: datetime.strptime(x, '%H:%M').time())
 
 dates = df['Date'].dt.date.unique()
 
+previous_variation=None
 
-
+def get_last_close_price():
+    # Obtention de la date actuelle
+    current_time = dt.datetime.now()
+    # Si c'est un week-end, obtenir la dernière valeur de clôture de vendredi
+    if current_time.weekday() == 5: # Samedi
+        last_close_price = df[df['Date'].dt.weekday == 4]['Action LVMH'].iloc[-1]
+    elif current_time.weekday() == 6: # Dimanche
+        last_close_price = df[df['Date'].dt.weekday == 4]['Action LVMH'].iloc[-1]
+    else:
+        # Si c'est un jour de semaine, obtenir la dernière valeur de clôture pour cette journée
+        last_close_price = df[df['Date'].dt.date == current_time.date()]['Action LVMH'].iloc[-1]
+    return last_close_price
 
 app = Dash(__name__) #objet de type dash
 app.title = 'Action LVMH'
@@ -264,18 +275,15 @@ def update_graph(selected_date, n):
     [Input('interval-jour', 'n_intervals')]
 )
 def update_prix_closure(n):
-    # Récupération de la date d'aujourd'hui
-    today = dt.date.today()
-    
-    # Filtrage des données pour la date d'hier
-    yesterday = today - dt.timedelta(days=1)
-    data = df[df['Date'].dt.date == yesterday]
-    
-    # Récupération du prix de clôture
-    prix_closure = data["Action LVMH"].iloc[-1]
-    
-    # Affichage du prix de clôture
-    return f"{prix_closure} €"
+   
+    # Obtention de la dernière valeur de clôture de la journée
+    last_close_price = get_last_close_price()
+    # Formatage du prix de clôture avec 2 décimales
+    formatted_price = "{:.2f}".format(last_close_price)
+    # Retourner le prix de clôture mis à jour
+    return f"{formatted_price} €"
+
+
 
 # Définition de la fonction de mise à jour du prix le plus haut et le plus bas
 @app.callback(
@@ -302,20 +310,27 @@ def update_output_div(date_string):
     Input('interval-min', 'n_intervals')
 )
 def update_variation(n):
+    global previous_variation
+    
+    current_time = datetime.now().time()
+    start_time = time(9, 0)
+    end_time = time(18, 0)
+    
+    if current_time >= start_time and current_time <= end_time and datetime.today().weekday() < 5:
     # Récupération de la date d'aujourd'hui
-    today = dt.date.today()
+        today = dt.date.today()
     
     # Filtrage des données pour la date d'hier
-    yesterday = today - dt.timedelta(days=1)
-    data = df[df['Date'].dt.date == yesterday]
+        yesterday = today - dt.timedelta(days=1)
+        data = df[df['Date'].dt.date == yesterday]
     
     # Récupération du prix de clôture
-    prix_closure = data["Action LVMH"].iloc[-1]
+        prix_closure = data["Action LVMH"].iloc[-1]
     
     # Récupérer la variation la plus récente
-    variation_pct = ((df['Action LVMH'].iloc[-1]-prix_closure)/prix_closure)*100
-    color = 'green' if variation_pct >= 0 else 'red'
-    return html.Span(f"{variation_pct:.2f}%", style={'color': color})
+        variation_pct = ((df['Action LVMH'].iloc[-1]-prix_closure)/prix_closure)*100
+        color = 'green' if variation_pct >= 0 else 'red'
+        return html.Span(f"{variation_pct:.2f}%", style={'color': color})
 
 # Définir la fonction de mise à jour de la volatilité
 @app.callback(Output('volatility', 'children'), [Input('date-picker', 'date')])
