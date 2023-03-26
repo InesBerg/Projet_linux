@@ -12,7 +12,7 @@ from datetime import datetime, time, timedelta
 import numpy as np
 
 
-df=pd.read_csv("//wsl.localhost/Ubuntu/home/inesbergaut/prix_lvmh.csv", sep=",", header = None)
+df=pd.read_csv("~/prix_lvmh.csv", sep=",", header = None)
 df.columns=['Date','Heure','Action LVMH']
 df['Date'] = pd.to_datetime(df['Date'])
 df['Heure'] = df['Heure'].apply(lambda x: datetime.strptime(x, '%H:%M').time())
@@ -243,7 +243,7 @@ def update_price(n):
 
 def update_graph(selected_date, n):
     # Recharger les données du fichier CSV
-    df=pd.read_csv("//wsl.localhost/Ubuntu/home/inesbergaut/prix_lvmh.csv", sep=",", header = None)
+    df=pd.read_csv("~/prix_lvmh.csv", sep=",", header = None)
     df.columns=['Date','Heure','Action LVMH']
     df['Date'] = pd.to_datetime(df['Date'])
     df['Heure'] = df['Heure'].apply(lambda x: datetime.strptime(x, '%H:%M').time())
@@ -331,10 +331,12 @@ def update_variation(n):
         variation_pct = ((df['Action LVMH'].iloc[-1]-prix_closure)/prix_closure)*100
         color = 'green' if variation_pct >= 0 else 'red'
         return html.Span(f"{variation_pct:.2f}%", style={'color': color})
+    
 
 # Définir la fonction de mise à jour de la volatilité
 @app.callback(Output('volatility', 'children'), [Input('date-picker', 'date')])
 def update_volatility(selected_date):
+    
     # Sélectionner les données pour la date sélectionnée
     selected_data = df[df['Date'] == selected_date]
     
@@ -344,7 +346,10 @@ def update_volatility(selected_date):
     # Calculer la volatilité
     volatility = selected_data['Rendement'].std() * (252 ** 0.5)
     
-    return "{:.2f}%".format(volatility * 100)
+    if np.isnan(volatility):
+       return "Aucune donnée pour cette journée"
+    else:
+       return "{:.2f}%".format(volatility * 100)
 
 
 if __name__ == '__main__':
